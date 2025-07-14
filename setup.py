@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="cw_api",
-    version="0.1.0",
+    version="0.1.1",
     author="Connor Crawford",
     description="Package handling tokens and URLs",
     packages=setuptools.find_packages(),
