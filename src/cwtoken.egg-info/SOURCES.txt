@@ -2,6 +2,7 @@ README.md
 pyproject.toml
 src/cwtoken/__init__.py
 src/cwtoken/cli.py
+src/cwtoken/gui.py
 src/cwtoken/key_manager.py
 src/cwtoken/utils.py
 src/cwtoken.egg-info/PKG-INFO

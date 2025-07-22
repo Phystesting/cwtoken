@@ -31,7 +31,6 @@ def get_access_token(clubcode: str, api_token: str, timeout: int = 10, verbose: 
         if not my_token:
             print("Access token not found in response. Check your club code and API token.")
             return None
-
         return my_token
 
     except requests.exceptions.RequestException as e:
@@ -70,6 +69,38 @@ def fetch(clubcode: str, api_token: str, request: str, timeout: int = 10, verbos
         response = requests.get(combined_url, headers=access_headers, timeout=timeout)
         response.raise_for_status()
         data = response.json()
+        return pd.DataFrame(data)
+
+    except requests.exceptions.RequestException as e:
+        print("Error fetching data from API.")
+        if verbose:
+            print(f"Details: {e}")
+        return None
+
+def fetch_frm_access(api_token: str, my_token: str, request: str, timeout: int = 10, verbose: bool = False) -> pd.DataFrame:
+    """
+    Fetch data from the API.
+
+    Args:
+        my_token (str): The access token.
+        request (str): The endpoint or request type (e.g., 'players').
+        timeout (int): Timeout duration in seconds.
+        verbose (bool): If True, print detailed error messages.
+
+    Returns:
+        pd.DataFrame or None: Data as a DataFrame if successful, otherwise None.
+    """
+    access_headers = {
+        'CW-API-Token': api_token,
+        'Authorization': f'Bearer {my_token}'
+    }
+    combined_url = base_url + request
+
+    try:
+        response = requests.get(combined_url, headers=access_headers, timeout=timeout)
+        response.raise_for_status()
+        data = response.json()
+        print("Success!")
         return pd.DataFrame(data)
 
     except requests.exceptions.RequestException as e:
