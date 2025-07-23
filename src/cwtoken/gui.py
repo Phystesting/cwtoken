@@ -30,7 +30,7 @@ def try_login():
     api_token = token_entry.get()
     save_credentials = save_cred.get()
 
-    token = key_manager.get_access_token(clubcode, api_token)
+    token = key_manager.get_access_token(api_token, clubcode)
     if token is not None:
         login_data["logged_in"] = True
         login_data["clubcode"] = clubcode
@@ -68,7 +68,7 @@ def run_query():
         return
     # TODO: fetch data and display or save
     print(f"Running query: {query_url_fmt}")
-    df = key_manager.fetch_frm_access(login_data["api_token"],login_data["token"],query_url_fmt)
+    df = key_manager.fetch(request=query_url_fmt, api_token=login_data["api_token"], access_token=login_data["token"])
     if df is None:
         messagebox.showerror("Error", "Invalid query")
         return
@@ -174,6 +174,8 @@ def save_file():
             title="Save CSV As"
         )
         dir_path = os.path.dirname(file_path)
+        if not file_path:
+            return  # user cancelled
         if os.path.isdir(dir_path):
             df.to_csv(f"{file_path}")
             finish = 0

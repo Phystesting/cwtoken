@@ -1,13 +1,16 @@
 import click
 from .utils import test_connection
-from .gui import main as run_gui
+from .gui import main as run_gui  # assuming relative import
 
 @click.group()
 def cli():
     """cwtoken command-line interface."""
     pass
 
-cli.add_command(test_connection, name="test-connection")
+@cli.command()
+def test():
+    """Test the API connection"""
+    test_connection()
 
 @cli.command()
 def gui():

@@ -11,13 +11,16 @@ cwtoken simplifies working with PostgREST APIs by:
 
 ## Available Functions
 
-### fetch(clubcode, token, request, timeout=10)
+### fetch(request, api_token, clubcode=None, access_token=None, timeout=10, verbose=False)
 
 Authenticates and executes a GET request to a PostgREST API. Returns a Pandas DataFrame.
+- If access_token is provided, it will be used directly.
+- If not, it will use clubcode and api_token to fetch one.
+- Returns the result as a Pandas DataFrame.
 
 ---
 
-### get_access_token(clubcode, token, timeout=10)
+### get_access_token(api_token, clubcode, timeout=10, verbose=False)
 
 Returns a fresh access token using your static API token. Use this if you want manual control.
 

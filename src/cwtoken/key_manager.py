@@ -3,7 +3,7 @@ import pandas as pd
 
 base_url = 'https://atukpostgrest.clubwise.com/'
 
-def get_access_token(clubcode: str, api_token: str, timeout: int = 10, verbose: bool = False) -> str:
+def get_access_token(api_token: str, clubcode: str, timeout: int = 10, verbose: bool = False) -> str:
     """
     Fetch access-token from the API.
 
@@ -39,29 +39,33 @@ def get_access_token(clubcode: str, api_token: str, timeout: int = 10, verbose: 
             print(f"Details: {e}")
         return None
 
-def fetch(clubcode: str, api_token: str, request: str, timeout: int = 10, verbose: bool = False) -> pd.DataFrame:
+def fetch(request: str, api_token: str, access_token: str = None, clubcode: str = None, timeout: int = 10, verbose: bool = False) -> pd.DataFrame:
     """
-    Fetch data from the API.
+    Fetch data from the API using either a provided access token,
+    or by generating one with a clubcode and static API token.
 
     Args:
-        clubcode (str): The club's unique identifier.
-        api_token (str): The authentication token or secret.
-        request (str): The endpoint or request type (e.g., 'players').
-        timeout (int): Timeout duration in seconds.
-        verbose (bool): If True, print detailed error messages.
+        request (str): The endpoint or request path (e.g., 'players').
+        api_token (str): Your static API token.
+        access_token (str, optional): If already available, it will be used.
+        clubcode (str, optional): Required if access_token is not provided.
+        timeout (int): Timeout duration for the request.
+        verbose (bool): If True, prints additional error info.
 
     Returns:
-        pd.DataFrame or None: Data as a DataFrame if successful, otherwise None.
+        pd.DataFrame or None: API data as a DataFrame, or None if failed.
     """
-    my_token = get_access_token(clubcode, api_token, timeout=timeout, verbose=verbose)
-    if not my_token:
-        print("\nFailed to fetch access token. Aborting.")
-        print("Try running test_connection() or check your club code and static token.\n")
-        return None
+    if not access_token:
+        if not clubcode:
+            raise ValueError("clubcode is required if access_token is not provided.")
+        access_token = get_access_token(api_token, clubcode, timeout=timeout, verbose=verbose)
+        if not access_token:
+            print("Failed to fetch access token. Aborting.")
+            return None
 
     access_headers = {
         'CW-API-Token': api_token,
-        'Authorization': f'Bearer {my_token}'
+        'Authorization': f'Bearer {access_token}'
     }
     combined_url = base_url + request
 
@@ -69,38 +73,6 @@ def fetch(clubcode: str, api_token: str, request: str, timeout: int = 10, verbos
         response = requests.get(combined_url, headers=access_headers, timeout=timeout)
         response.raise_for_status()
         data = response.json()
-        return pd.DataFrame(data)
-
-    except requests.exceptions.RequestException as e:
-        print("Error fetching data from API.")
-        if verbose:
-            print(f"Details: {e}")
-        return None
-
-def fetch_frm_access(api_token: str, my_token: str, request: str, timeout: int = 10, verbose: bool = False) -> pd.DataFrame:
-    """
-    Fetch data from the API.
-
-    Args:
-        my_token (str): The access token.
-        request (str): The endpoint or request type (e.g., 'players').
-        timeout (int): Timeout duration in seconds.
-        verbose (bool): If True, print detailed error messages.
-
-    Returns:
-        pd.DataFrame or None: Data as a DataFrame if successful, otherwise None.
-    """
-    access_headers = {
-        'CW-API-Token': api_token,
-        'Authorization': f'Bearer {my_token}'
-    }
-    combined_url = base_url + request
-
-    try:
-        response = requests.get(combined_url, headers=access_headers, timeout=timeout)
-        response.raise_for_status()
-        data = response.json()
-        print("Success!")
         return pd.DataFrame(data)
 
     except requests.exceptions.RequestException as e:
