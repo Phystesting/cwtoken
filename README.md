@@ -13,7 +13,7 @@ cwtoken simplifies working with PostgREST APIs by:
 
 ### fetch(request, api_token, clubcode=None, access_token=None, timeout=10, verbose=False)
 
-Authenticates and executes a GET request to a PostgREST API. Returns a Pandas DataFrame.
+- Authenticates and executes a GET request to a PostgREST API.
 - If access_token is provided, it will be used directly.
 - If not, it will use clubcode and api_token to fetch one.
 - Returns the result as a Pandas DataFrame.
@@ -32,7 +32,7 @@ Pings the API server to check if it's reachable.
 
 Can be run from the CLI:
 
-cwtoken test-connection
+cwtoken test
 
 ### cwtoken gui
 Launches the graphical interface for building and executing queries with no coding required.

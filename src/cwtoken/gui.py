@@ -2,7 +2,10 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from . import key_manager
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from dotenv import load_dotenv
+import json
 
 # --- Tkinter root ---
 root = tk.Tk()
@@ -38,8 +41,11 @@ def try_login():
         login_data["token"] = token
 
         if save_credentials == 1:
-            with open("static_api.txt", "w") as f:
-                f.write(f"{clubcode},{api_token}\n")
+            config_dir = Path.home() / ".cwtoken"
+            config_dir.mkdir(exist_ok=True)  # create directory if it doesn't exist
+            cred_path = config_dir / "static_api.env"
+            with open(cred_path, "w") as f:
+                f.write(f"CLUBCODE={clubcode}\nAPI_TOKEN={api_token}\n")
 
         show_main_app()
     else:
@@ -72,23 +78,38 @@ def run_query():
     if df is None:
         messagebox.showerror("Error", "Invalid query")
         return
-    finish = 1
     if save_query.get():
-        while finish:
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".txt",
-                filetypes=[("TXT files", "*.txt")],
-                title="Save Query As"
-            )
-            dir_path = os.path.dirname(file_path)
-            if not file_path:
-                return  # user cancelled
-            if os.path.isdir(dir_path):
-                with open(f'{file_path}', 'w') as file:
-                    file.write(f'{query}')
-                finish = 0
-            else:
-                print("Error: file path doesn't exist")
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[
+                ("JSON files", "*.json"),
+                ("Text files", "*.txt"),
+                ("All files", "*.*")
+            ],
+            title="Save Query As"
+        )
+        dir_path = os.path.dirname(file_path)
+        if not file_path:
+            return  # user cancelled
+        _, ext = os.path.splitext(file_path)
+
+        if ext.lower() == ".json":
+            # Save query + metadata as JSON
+            data = {
+                "query": query_url_fmt,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "club_code": login_data["clubcode"],
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                "load_count": 1,
+            }
+            with open(file_path, "w") as f:
+                json.dump(data, f, indent=4)
+            print(f"Query + metadata saved to {file_path}")
+        else:
+            # Save only raw query string as plain text
+            with open(file_path, "w") as f:
+                f.write(query_str)
+            print(f"Raw query saved to {file_path}")
     
     
     show_results()
@@ -97,19 +118,43 @@ def load_query():
     finish = 1
     while finish:
         file_path = filedialog.askopenfilename(
-            defaultextension=".txt",
-            filetypes=[("TXT files", "*.txt")],
+            defaultextension=".json",
+            filetypes=[
+                ("JSON files", "*.json"),
+                ("Text files", "*.txt"),
+                ("All files", "*.*")
+            ],
             title="Open query file"
         )
         dir_path = os.path.dirname(file_path)
+        
         if not file_path:
             return  # user cancelled
-        if os.path.isdir(dir_path):
-            finish = 0
-            with open(f'{file_path}', 'r') as file:
-                file_content = file.read()
+            
+        _, ext = os.path.splitext(file_path) 
+        if ext.lower() == ".json":
+            if os.path.isdir(dir_path):
+                finish = 0
+                with open(file_path, 'r') as json_File:
+                    load_file = json.load(json_File)
+                file_content = load_file["query"]
+                current_count = load_file["load_count"]
+                load_file["load_count"] = current_count + 1
+                
+                load_file["last_run_at"] = datetime.now(timezone.utc).isoformat()
+
+                with open(file_path, "w") as f:
+                    json.dump(load_file, f, indent=4)
+
+            else:
+                print("Error: file path doesn't exist")
         else:
-            print("Error: file path doesn't exist")
+            if os.path.isdir(dir_path):
+                finish = 0
+                with open(file_path, 'r') as file:
+                    file_content = file.read()
+            else:
+                print("Error: file path doesn't exist")
     data_text.insert('1.0', file_content)
 # --- Pages ---
 
@@ -248,13 +293,20 @@ def setup_login_screen():
     token_entry.pack()
 
     tk.Checkbutton(root, text="Save credentials?", variable=save_cred).pack()
+    config_dir = Path.home() / ".cwtoken"
+    cred_path = config_dir / "static_api.env"
 
-    if os.path.exists('static_api.txt'):
-        with open('static_api.txt', 'r') as f:
-            line = f.readline().strip()
-            clubcode, api_token = line.split(',')
-            clubcode_entry.insert(0, clubcode)
-            token_entry.insert(0, api_token)
+    if cred_path.exists():
+        try:
+            with open(cred_path, 'r') as f:
+                load_dotenv(dotenv_path=cred_path)
+                clubcode = os.getenv("CLUBCODE")
+                api_token = os.getenv("API_TOKEN")
+
+                clubcode_entry.insert(0, clubcode)
+                token_entry.insert(0, api_token)
+        except ValueError:
+            print("Credential file format invalid.")
 
     tk.Button(root, text="Login", command=try_login).pack(pady=20)
 
