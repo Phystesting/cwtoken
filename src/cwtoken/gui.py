@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 import json
+import textwrap
 
 # --- Tkinter root ---
 root = tk.Tk()
@@ -22,7 +23,7 @@ save_csv = tk.IntVar()
 save_query = tk.IntVar()
 clubcode_entry = None
 token_entry = None
-data_text = None
+global_data_text = None
 df = None
 
 # --- Buttons ---
@@ -54,6 +55,7 @@ def try_login():
 # --- Save query function ---
 def run_query():
     global df
+    global global_data_text
     
     today = datetime.today().date()
     keywords = {
@@ -62,7 +64,7 @@ def run_query():
         "yesterday": today - timedelta(days=1),
         "beginning_of_month": today.replace(day=1)
     }
-    
+    global_data_text = data_text.get("1.0", "end")
     query = data_text.get("1.0", "end").strip()
     query_keywords = query.format(**keywords)
     query_url_fmt = query_keywords.replace('\n', '').replace('\r', '')
@@ -96,7 +98,7 @@ def run_query():
         if ext.lower() == ".json":
             # Save query + metadata as JSON
             data = {
-                "query": query_url_fmt,
+                "query": query,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "club_code": login_data["clubcode"],
                 "last_run_at": datetime.now(timezone.utc).isoformat(),
@@ -110,8 +112,6 @@ def run_query():
             with open(file_path, "w") as f:
                 f.write(query_str)
             print(f"Raw query saved to {file_path}")
-    
-    
     show_results()
 
 def load_query():
@@ -156,6 +156,71 @@ def load_query():
             else:
                 print("Error: file path doesn't exist")
     data_text.insert('1.0', file_content)
+
+def save_file():
+    finish = 1
+    while finish:
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+            title="Save CSV As"
+        )
+        dir_path = os.path.dirname(file_path)
+        if not file_path:
+            return  # user cancelled
+        if os.path.isdir(dir_path):
+            df.to_csv(f"{file_path}")
+            finish = 0
+        else:
+            print("Error: file path doesn't exist")
+
+def generatepy():
+    global global_data_text
+    request = global_data_text.strip()
+    request_fmt = request.replace('\n', '').replace('\r', '')
+    if request:
+        script_content = textwrap.dedent(f"""
+            import cwtoken
+            from datetime import datetime, timedelta
+
+            today = datetime.today().date()
+            keywords = {{
+                "today": today,
+                "tomorrow": today + timedelta(days=1),
+                "yesterday": today - timedelta(days=1),
+                "beginning_of_month": today.replace(day=1)
+            }}
+
+            clubcode = '{login_data["clubcode"]}'
+            api_token = '{login_data["api_token"]}'
+            raw_request = '{request_fmt}'
+            request = raw_request.format(**keywords)
+            
+            df = cwtoken.fetch(request, api_token, clubcode=clubcode)
+            print(df)
+        """)
+
+        finish = 1
+        while finish:
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".py",
+                filetypes=[("py files", "*.py")],
+                title="Save PY As"
+            )
+            dir_path = os.path.dirname(file_path)
+            if not file_path:
+                return  # user cancelled
+            if os.path.isdir(dir_path):
+                with open(file_path, "w") as f:
+                    f.write(script_content)
+                finish = 0
+                print(f"PY file saved to {file_path}")
+            else:
+                print("Error: file path doesn't exist")
+    else:
+        print("please enter query")
+        return
+
 # --- Pages ---
 
 def show_results():
@@ -182,17 +247,17 @@ def show_results():
         treescrolly = tk.Scrollbar(display_df, orient="vertical", command=tv1.yview)
         treescrollx = tk.Scrollbar(container, orient="horizontal", command=tv1.xview)
         tv1.configure(xscrollcommand=treescrollx.set, yscrollcommand=treescrolly.set)
-
+        
         treescrolly.pack(side="right", fill="y")
         treescrollx.pack(side="bottom", fill="x")
-
+        
         # Setup columns
         tv1["columns"] = list(df.columns)
         tv1["show"] = "headings"
-
+        
         for column in tv1["columns"]:
             tv1.heading(column, text=column)
-
+        
         # Insert rows
         df_rows = df.to_numpy().tolist()
         tv1["displaycolumns"] = ()
@@ -200,32 +265,17 @@ def show_results():
             tv1.insert("", "end", values=row)
         tv1["displaycolumns"] = list(df.columns)
     else:
-        tk.Label(root, text="Query returned empty array!", font=("Arial", 14)).grid(row=0, column=0, pady=10, sticky="w", padx=10)
+        tk.Label(root, text="Query returned empty array!", font=("Arial", 14)).pack(pady=10, anchor="w", padx=10)
+
 
     # --- Bottom Buttons (Side-by-side)
     button_frame = tk.Frame(root)
     button_frame.pack(pady=20)
 
     tk.Button(button_frame, text="Save to CSV", command=save_file).pack(side="left", padx=20)
+    tk.Button(button_frame, text="Generate PY file", command=generatepy).pack(side="left", padx=20)
     tk.Button(button_frame, text="Back to Query Creator", command=show_main_app).pack(side="left", padx=20)
 
-    
-def save_file():
-    finish = 1
-    while finish:
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv")],
-            title="Save CSV As"
-        )
-        dir_path = os.path.dirname(file_path)
-        if not file_path:
-            return  # user cancelled
-        if os.path.isdir(dir_path):
-            df.to_csv(f"{file_path}")
-            finish = 0
-        else:
-            print("Error: file path doesn't exist")
             
 def show_main_app():
     global data_text, save_csv, save_query
@@ -283,15 +333,15 @@ def setup_login_screen():
     global clubcode_entry, token_entry
     root.title("Clubwise Login")
     root.geometry("300x220")
-
+    
     tk.Label(root, text="Enter Clubcode:").pack(pady=5)
     clubcode_entry = tk.Entry(root)
     clubcode_entry.pack()
-
+    
     tk.Label(root, text="Enter API Token:").pack(pady=5)
     token_entry = tk.Entry(root, show="*")
     token_entry.pack()
-
+    
     tk.Checkbutton(root, text="Save credentials?", variable=save_cred).pack()
     config_dir = Path.home() / ".cwtoken"
     cred_path = config_dir / "static_api.env"
