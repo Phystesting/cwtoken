@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: cwtoken
-Version: 0.4.0
+Version: 0.4.1
 Summary: Package handling tokens and URLs
 Author: Connor Crawford
 Requires-Python: >=3.7
@@ -10,7 +10,6 @@ Requires-Dist: requests
 Requires-Dist: click
 Requires-Dist: dotenv
 Requires-Dist: pathlib
-Requires-Dist: urlencode
 
 cwtoken Technical Reference
 ===========================

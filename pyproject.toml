@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cwtoken"
-version = "0.4.0"
+version = "0.4.1"
 description = "Package handling tokens and URLs"
 readme = "README.md" 
 authors = [{ name = "Connor Crawford" }]
-dependencies = ["pandas", "requests", "click", "dotenv", "pathlib", "urlencode"]
+dependencies = ["pandas", "requests", "click", "dotenv", "pathlib"]
 requires-python = ">=3.7"
 
 
