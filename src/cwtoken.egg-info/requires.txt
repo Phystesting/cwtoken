@@ -3,3 +3,4 @@ requests
 click
 dotenv
 pathlib
+urlencode

@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from . import key_manager
+from .key_manager import cwapi
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -12,12 +12,7 @@ import textwrap
 root = tk.Tk()
 
 # --- Shared state ---
-login_data = {
-    "logged_in": False,
-    "clubcode": None,
-    "api_token": None,
-    "token": None
-}
+logged_in = False
 save_cred = tk.IntVar()
 save_csv = tk.IntVar()
 save_query = tk.IntVar()
@@ -25,28 +20,27 @@ clubcode_entry = None
 token_entry = None
 global_data_text = None
 df = None
+global_client = None
 
 # --- Buttons ---
 
 # --- Login check function ---
 def try_login():
+    global global_client
     clubcode = clubcode_entry.get()
     api_token = token_entry.get()
     save_credentials = save_cred.get()
 
-    token = key_manager.get_access_token(api_token, clubcode)
-    if token is not None:
-        login_data["logged_in"] = True
-        login_data["clubcode"] = clubcode
-        login_data["api_token"] = api_token
-        login_data["token"] = token
+    global_client = cwapi(api_token, clubcode=clubcode)
+    if global_client.access_token is not None:
+        logged_in = True
 
         if save_credentials == 1:
             config_dir = Path.home() / ".cwtoken"
             config_dir.mkdir(exist_ok=True)  # create directory if it doesn't exist
             cred_path = config_dir / "static_api.env"
             with open(cred_path, "w") as f:
-                f.write(f"CLUBCODE={clubcode}\nAPI_TOKEN={api_token}\n")
+                f.write(f"CLUBCODE={global_client.clubcode}\nAPI_TOKEN={global_client.api_token}\n")
 
         show_main_app()
     else:
@@ -71,12 +65,12 @@ def run_query():
     if not query_url_fmt:
         messagebox.showerror("Input Error", "Please enter a query URL.")
         return
-    if not login_data["token"]:
+    if not global_client.access_token:
         messagebox.showerror("Error", "Access token missing. Please login again.")
         return
     # TODO: fetch data and display or save
     print(f"Running query: {query_url_fmt}")
-    df = key_manager.fetch(request=query_url_fmt, api_token=login_data["api_token"], access_token=login_data["token"])
+    df = global_client.raw_query(query_url_fmt).fetch()
     if df is None:
         messagebox.showerror("Error", "Invalid query")
         return
@@ -100,7 +94,7 @@ def run_query():
             data = {
                 "query": query,
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "club_code": login_data["clubcode"],
+                "club_code": global_client.clubcode,
                 "last_run_at": datetime.now(timezone.utc).isoformat(),
                 "load_count": 1,
             }
@@ -289,7 +283,7 @@ def show_main_app():
     root.columnconfigure(0, weight=1)
     root.rowconfigure(3, weight=1)  # Make the Text widget row expandable
 
-    tk.Label(root, text=f"Welcome! Clubcode: {login_data['clubcode']}", font=("Arial", 14)).grid(row=0, column=0, pady=10, sticky="w", padx=10)
+    tk.Label(root, text=f"Welcome! Clubcode: {global_client.clubcode}", font=("Arial", 14)).grid(row=0, column=0, pady=10, sticky="w", padx=10)
 
     desc_text = (
         "Enter your PostgREST API URL string below.\n"

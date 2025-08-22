@@ -1,30 +1,81 @@
-# cwtoken
+cwtoken Technical Reference
+===========================
 
 cwtoken simplifies working with PostgREST APIs by:
 
 - Automatically handling **access token generation**
+- Provides a query constructor for URL generation, and a diagnostic mode for debugging
 - Making authenticated **GET requests** to PostgREST endpoints
 - Providing a **CLI** for quick testing and usage
 - Including a user-friendly **GUI** for building and running queries without code
 
 ---
 
-## Available Functions
+cwapi — API Client
+------------------
 
-### fetch(request, api_token, clubcode=None, access_token=None, timeout=10, verbose=False)
+Represents an authenticated connection to the PostgREST API. All queries are created via this object.
 
-- Authenticates and executes a GET request to a PostgREST API.
-- If access_token is provided, it will be used directly.
-- If not, it will use clubcode and api_token to fetch one.
-- Returns the result as a Pandas DataFrame.
+Constructor:
 
----
+client = cwapi(
+    api_token: str,
+    clubcode: str = None,        # required if access_token not provided
+    access_token: str = None,
+    base_url: str = "https://atukpostgrest.clubwise.com/"
+)
 
-### get_access_token(api_token, clubcode, timeout=10, verbose=False)
+Attributes:
 
-Returns a fresh access token using your static API token. Use this if you want manual control.
+- client.access_token — automatically fetched if not provided
+- client.headers — dict of headers including Authorization
+- client.clubcode — club code used
 
----
+Methods:
+
+- client.table(endpoint: str) -> query  
+  Returns a query constructor object for building endpoint queries. Supports method chaining.
+
+- client.raw_query(full_query: str) -> RawQuery  
+  Returns a raw query object for executing a fully specified URL.
+
+query — Table-based Query Constructor
+-------------------------------------
+
+- Created via client.table(endpoint)
+- Supports chained methods:
+
+q = client.table("member") \
+          .select("member_no", "first_name") \
+          .filters("date_of_birth=gt.1980-01-01") \
+          .order("first_name", desc=True) \
+          .limit(10)
+
+Attributes:
+
+- client.diagnostic: bool — Enables diagnostic mode for your query. Allows it to identify which part of the input query is malformed upon faliure, set to False by default.
+
+Methods:
+
+- .select(*columns) — adds columns to select
+- .filters(*filters) — raw PostgREST filter strings
+- .order(*columns, desc=False) — orders results
+- .limit(n) — limits results
+- .fetch() -> pandas.DataFrame — executes query
+
+RawQuery — Direct URL Query
+---------------------------
+
+- Created via client.raw_query(full_query)
+- method:
+
+df = client.raw_query("member?select=first_name&limit=10").fetch()
+
+- .fetch() -> pandas.DataFrame — executes URL request
+- Bypasses query builder chaining; used for pre-formed URLs
+
+CLI Functions
+-------------
 
 ### test_connection()
 
@@ -35,8 +86,16 @@ Can be run from the CLI:
 cwtoken test
 
 ### cwtoken gui
-Launches the graphical interface for building and executing queries with no coding required.
+Launches the graphical interface for building and executing queries.
 
 Run it from the CLI like this:
 
 cwtoken gui
+
+Notes on Usage
+--------------
+
+- Queries are always linked to a client.
+- Method chaining is supported for the query object.
+- Both query and RawQuery return pandas.DataFrame on .fetch().
+- RawQuery can be used for fully constructed URLs without using the query builder.
