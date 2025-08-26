@@ -16,7 +16,7 @@ class RawQuery:
         response.raise_for_status()
         return pd.DataFrame(response.json())
 
-class query:
+class Query:
     def __init__(self, base_url, endpoint, headers=None):
         self.base_url = base_url.rstrip('/')
         self.endpoint = endpoint.strip('/')
@@ -51,20 +51,24 @@ class query:
     def limit(self, n):
         self._params['limit'] = str(n)
         return self
-
-    def fetch(self):
+    
+    def compose_url(self):
         # Compose full URL
-        full_url = f'{self.base_url}/{self.endpoint}'
+        full_url = f'{self.endpoint}'
         # Add ordering to params if exists
         if self._orders:
             self._params['order'] = ','.join(self._orders)
 
-        query_str = urlencode(self._params)
+        query_str = urlencode(self._params, safe=',()')
         filter_str = '&'.join(self._filters)
 
         if query_str or filter_str:
             full_url += '?' + '&'.join(filter(None, [query_str, filter_str]))
-        
+        return full_url
+    
+    def fetch(self):
+        full_url = f'{self.base_url}/{self.compose_url()}'
+        print(full_url)
         try:
             response = requests.get(full_url, headers=self.headers)
             response.raise_for_status()
@@ -154,7 +158,7 @@ class cwapi:
         return self
         
     def table(self, endpoint):
-        return query(self.base_url, endpoint, self.headers)
+        return Query(self.base_url, endpoint, self.headers)
     def raw_query(self, full_query):
         return RawQuery(self.base_url, full_query, self.headers)
     
