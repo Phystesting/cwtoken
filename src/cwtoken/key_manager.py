@@ -24,19 +24,16 @@ class Query:
         self._params = {}
         self._filters = []
         self._orders = []
-        self.diagnostic = False
 
     def select(self, *columns):
-        cols = [c.replace(' ', '') for c in columns]  # remove spaces
+        cols = [c for c in columns]
         existing = self._params.get('select','').split(',')
         combined = [c for c in existing + cols if c]
         self._params['select'] = ','.join(combined)
         return self
 
     def filters(self, *filter_strings):
-        # Just append them raw, no parsing
-        filters = [f.replace(' ', '') for f in filter_strings]
-        self._filters.extend(filters)
+        self._filters.extend(filter_strings)
         return self
 
     def order(self, *column, desc=False):
@@ -66,7 +63,7 @@ class Query:
             full_url += '?' + '&'.join(filter(None, [query_str, filter_str]))
         return full_url
     
-    def fetch(self):
+    def fetch(self, diagnostic=False):
         full_url = f'{self.base_url}/{self.compose_url()}'
         print(full_url)
         try:
@@ -75,7 +72,7 @@ class Query:
         
         except:
             #full (slow) diagnostic mode
-            if self.diagnostic:
+            if diagnostic:
                 try:
                     connection_test = requests.head(f'{self.base_url}/', headers=self.headers)
                     connection_test.raise_for_status()

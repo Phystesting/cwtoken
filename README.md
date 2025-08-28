@@ -51,17 +51,13 @@ q = client.table("member") \
           .order("first_name", desc=True) \
           .limit(10)
 
-Attributes:
-
-- client.diagnostic: bool — Enables diagnostic mode for your query. Allows it to identify which part of the input query is malformed upon faliure, set to False by default.
-
 Methods:
 
 - .select(*columns) — adds columns to select
 - .filters(*filters) — raw PostgREST filter strings
 - .order(*columns, desc=False) — orders results
 - .limit(n) — limits results
-- .fetch() -> pandas.DataFrame — executes query
+- .fetch(diagnostic=False) -> pandas.DataFrame — executes query
 
 RawQuery — Direct URL Query
 ---------------------------

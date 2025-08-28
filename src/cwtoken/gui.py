@@ -75,6 +75,18 @@ def save_query():
         json.dump(data, f, indent=4)
     print(f"Query + metadata saved to {file_path}")
 
+def insert_keywords():
+    global global_query
+    today = datetime.today().date()
+    keywords = {
+            "today": today,
+            "tomorrow": today + timedelta(days=1),
+            "yesterday": today - timedelta(days=1),
+            "beginning_of_month": today.replace(day=1)
+        }
+    for i, f in enumerate(global_query._filters):
+        global_query._filters[i] = f.format(**keywords)
+
 def run_query():
     global df
     if not global_query:
@@ -83,8 +95,9 @@ def run_query():
     if not global_client.access_token:
         messagebox.showerror("Error", "Access token missing. Please login again.")
         return
+    insert_keywords()
     print(f"Running query: {global_query.compose_url()}")
-    df = global_query.fetch()
+    df = global_query.fetch(diagnostic=True)
     if df is None:
         messagebox.showerror("Error", "Invalid query")
         return
