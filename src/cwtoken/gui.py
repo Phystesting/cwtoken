@@ -257,9 +257,11 @@ def show_results():
 
             
 def show_main_app():
-    global data_text, save_csv, save_query
+    global data_text, save_csv, save_query, global_query
     for widget in root.winfo_children():
         widget.destroy()
+    
+    global_query = None
     
     root.geometry("800x600")
     root.title("POSTGREST data request")
@@ -274,13 +276,13 @@ def show_main_app():
     ).grid(row=0, column=0, pady=10, sticky="w", padx=10, columnspan=3)
     
     desc_text = (
-        "Enter your PostgREST API URL string below.\n"
-        "This should be the endpoint you want to query, including any filters or parameters.\n\n"
-        "Example:\n"
-        "member?select=member_no,first_name,surname\n"
-        "&first_name=eq.John\n\n"
-        "Make sure your URL is valid and accessible with your API token."
+        "Enter your PostgREST API URL below.\n\n"
+        "1. Add the table you want to query (press Add).\n"
+        "2. Add any column selections, filters, or parameters (press Add each time).\n"
+        "3. Save the query (optional) and press Run to fetch results.\n\n"
+        "You can also save outputs from the results page."
     )
+
     tk.Label(root, text=desc_text, justify="left", wraplength=600).grid(
         row=1, column=0, padx=10, pady=(0, 10), sticky="w", columnspan=3
     )
