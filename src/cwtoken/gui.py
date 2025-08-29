@@ -260,20 +260,18 @@ def show_main_app():
     global data_text, save_csv, save_query, global_query
     for widget in root.winfo_children():
         widget.destroy()
-    
+
     global_query = None
     
     root.geometry("800x600")
     root.title("POSTGREST data request")
 
     # make columns expand
-    root.columnconfigure(0, weight=0)  # labels don't expand
-    root.columnconfigure(1, weight=1)  # entries expand
-    root.columnconfigure(2, weight=0)  # buttons don't expand
+    root.columnconfigure(0, weight=1)
     
     tk.Label(
         root, text=f"Welcome! Clubcode: {global_client.clubcode}", font=("Arial", 14)
-    ).grid(row=0, column=0, pady=10, sticky="w", padx=10, columnspan=3)
+    ).grid(row=0, column=0, pady=10, sticky="ew", padx=10, columnspan=3)
     
     desc_text = (
         "Enter your PostgREST API URL below.\n\n"
@@ -284,7 +282,7 @@ def show_main_app():
     )
 
     tk.Label(root, text=desc_text, justify="left", wraplength=600).grid(
-        row=1, column=0, padx=10, pady=(0, 10), sticky="w", columnspan=3
+        row=1, column=0, padx=10, pady=(0, 10), sticky="ew", columnspan=3
     )
     def update_preview():
         if global_query:
@@ -304,36 +302,74 @@ def show_main_app():
         update_preview()
     
     options_frame = tk.Frame(root)
-    options_frame.grid(row=2, column=0, sticky="w", padx=10, columnspan=3)
+    options_frame.grid(row=2, column=0, sticky="ew", padx=10, columnspan=3)
     
     tk.Button(options_frame, text="Save query", command=save_query).pack(side="left")
     tk.Button(options_frame, text="Load query", command=load_update).pack(side="left", padx=10)
     
     # --- Inputs ---
-    tk.Label(root, text="Table:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-    table_entry = tk.Entry(root, width=20)
-    table_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
-    tk.Button(root, text="Add",command=start_query).grid(row=3, column=2, padx=5, pady=5, sticky="w")
+    table_frame = tk.Frame(root)
+    table_frame.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
+    tk.Label(table_frame, text="Table:").pack(side="left", padx=(0,5))
+    table_entry = tk.Entry(table_frame, width=20)
+    table_entry.pack(side="left", fill="x", expand=True, padx=(5,0))
+    table_button = tk.Button(table_frame, text="Add",command=start_query)
+    table_button.pack(side="left", padx=(5,0))
     
-    tk.Label(root, text="Select:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
-    select_entry = tk.Entry(root, width=50)
-    select_entry.grid(row=4, column=1, padx=5, pady=5, sticky="ew")
-    tk.Button(root, text="Add",command=lambda: (global_query.select(select_entry.get()), select_entry.delete(0, tk.END), update_preview())).grid(row=4, column=2, padx=5, pady=5, sticky="w")
+    select_frame = tk.Frame(root)
+    select_frame.grid(row=4, column=0, padx=5, pady=5, sticky="ew")
+    tk.Label(select_frame, text="Select:").pack(side="left", padx=(0,5))
+    select_entry = tk.Entry(select_frame, width=50)
+    select_entry.pack(side="left", fill="x", expand=True, padx=(0,5))
+    select_button = tk.Button(select_frame, text="Add",command=lambda: (global_query.select(select_entry.get()), select_entry.delete(0, tk.END), update_preview()))
+    select_button.pack(side="left", padx=(0,5))
     
-    tk.Label(root, text="Filter:").grid(row=5, column=0, padx=5, pady=5, sticky="w")
-    filter_entry = tk.Entry(root, width=50)
-    filter_entry.grid(row=5, column=1, padx=5, pady=5, sticky="ew")
-    tk.Button(root, text="Add",command=lambda: (global_query.filters(filter_entry.get()), filter_entry.delete(0, tk.END), update_preview())).grid(row=5, column=2, padx=5, pady=5, sticky="w")
     
-    tk.Label(root, text="Order:").grid(row=6, column=0, padx=5, pady=5, sticky="w")
-    order_entry = tk.Entry(root, width=50)
-    order_entry.grid(row=6, column=1, padx=5, pady=5, sticky="ew")
-    tk.Button(root, text="Add",command=lambda: (global_query.order(order_entry.get()), order_entry.delete(0, tk.END), update_preview())).grid(row=6, column=2, padx=5, pady=5, sticky="w")
+    filter_frame = tk.Frame(root)
+    filter_frame.grid(row=5, column=0, padx=5, pady=5, sticky="ew")
+    tk.Label(filter_frame, text="Filter:").pack(side="left", padx=(0,5))
+    filter_entry = tk.Entry(filter_frame, width=50)
+    filter_entry.pack(side="left", fill="x", expand=True, padx=(0,5))
+    filter_button = tk.Button(filter_frame, text="Add",command=lambda: (global_query.filters(filter_entry.get()), filter_entry.delete(0, tk.END), update_preview()))
+    filter_button.pack(side="left", padx=(0,5))
     
-    tk.Label(root, text="Limit:").grid(row=7, column=0, padx=5, pady=5, sticky="w")
-    limit_entry = tk.Entry(root, width=50)
-    limit_entry.grid(row=7, column=1, padx=5, pady=5, sticky="ew")
-    tk.Button(root, text="Add",command=lambda: (global_query.limit(limit_entry.get()), limit_entry.delete(0, tk.END), update_preview())).grid(row=7, column=2, padx=5, pady=5, sticky="w")
+
+    order_frame = tk.Frame(root)
+    order_frame.grid(row=6, column=0, padx=5, pady=5, sticky="ew")
+    tk.Label(order_frame, text="Order:").pack(side="left", padx=(0,5))
+
+
+    order_column_entry = tk.Entry(order_frame, width=30)
+    order_column_entry.pack(side="left", fill="x", expand=True, padx=(0,5))
+
+
+    order_dir_combo = ttk.Combobox(order_frame, values=["asc", "desc"], width=10)
+    order_dir_combo.current(0)  # default to "asc"
+    order_dir_combo.pack(side="left", padx=(0,5))
+
+
+    def add_order():
+        col = order_column_entry.get()
+        direction = order_dir_combo.get()
+        if direction == "asc":
+            direction = False
+        if direction == "desc":
+            direction = True
+        if col:
+            global_query.order(f"{col}", desc=direction)
+            order_column_entry.delete(0, tk.END)
+            update_preview()
+
+    order_button = tk.Button(order_frame, text="Add", command=add_order)
+    order_button.pack(side="left", padx=(0,5))
+    
+    
+    limit_frame = tk.Frame(root)
+    limit_frame.grid(row=7, column=0, padx=5, pady=5, sticky="ew")
+    tk.Label(limit_frame, text="Limit:").pack(side="left", padx=(0,5))
+    limit_entry = tk.Entry(limit_frame, width=50)
+    limit_entry.pack(side="left", fill="x", expand=True, padx=(0,5))
+    tk.Button(limit_frame, text="Add",command=lambda: (global_query.limit(limit_entry.get()), limit_entry.delete(0, tk.END), update_preview())).pack(side="left", padx=(0,5))
     
     query_preview_var = tk.StringVar()
     query_preview_var.set("Query preview:")  # initial text
@@ -344,7 +380,8 @@ def show_main_app():
     bottom_frame = tk.Frame(root)
     bottom_frame.grid(row=9, column=0, columnspan=3, sticky="w", pady=10, padx=10)
     tk.Button(bottom_frame, text="Run query", command=run_query).pack(side="left", padx=10)
-    tk.Button(bottom_frame, text="Clear Query", command=clear_query).pack(side="left", padx=10)
+    Button = tk.Button(bottom_frame, text="Clear Query", command=clear_query)
+    Button.pack(side="left", padx=(0,5))
 
 
 
