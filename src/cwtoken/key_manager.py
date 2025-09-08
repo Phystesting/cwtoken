@@ -6,6 +6,7 @@ import warnings
 
 class RawQuery:
     def __init__(self, base_url, full_query, headers):
+        self.query_type = "Raw"
         self.base_url = base_url.rstrip('/')
         self.full_query = full_query.strip('/')
         self.headers = headers
@@ -18,6 +19,7 @@ class RawQuery:
 
 class Query:
     def __init__(self, base_url, endpoint, headers=None):
+        self.query_type = "Constructor"
         self.base_url = base_url.rstrip('/')
         self.endpoint = endpoint.strip('/')
         self.headers = headers or {}
@@ -48,6 +50,27 @@ class Query:
     def limit(self, n):
         self._params['limit'] = str(n)
         return self
+        
+    def clear_filters(self):
+        self._filters = []
+        return self
+
+    def clear_orders(self):
+        self._params.pop("order", None)
+        self._orders = []
+        return self
+
+    def clear_params(self):
+        self._params = {}
+        return self
+
+    def clear_select(self):
+        self._params.pop("select", None)
+        return self
+
+    def clear_limit(self):
+        self._params.pop("limit", None)
+        return self
     
     def compose_url(self):
         # Compose full URL
@@ -57,6 +80,7 @@ class Query:
             self._params['order'] = ','.join(self._orders)
 
         query_str = urlencode(self._params, safe=',()')
+        
         filter_str = '&'.join(self._filters)
 
         if query_str or filter_str:
@@ -147,7 +171,6 @@ class cwapi:
         self.access_token = response.json().get('access-token')
         if not self.access_token:
             raise Exception("Access token not found in response.")
-
         self.headers = {
             'CW-API-Token': self.api_token,
             'Authorization': f'Bearer {self.access_token}'

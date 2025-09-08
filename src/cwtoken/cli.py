@@ -1,6 +1,6 @@
 import click
 from .utils import test_connection
-from .gui import main as run_gui  # assuming relative import
+from .gui import main as run_gui 
 
 @click.group()
 def cli():
