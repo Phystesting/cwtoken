@@ -87,9 +87,8 @@ class Query:
             full_url += '?' + '&'.join(filter(None, [query_str, filter_str]))
         return full_url
     
-    def fetch(self, diagnostic=False):
+    def fetch(self,to_json=False, diagnostic=False):
         full_url = f'{self.base_url}/{self.compose_url()}'
-        print(full_url)
         try:
             response = requests.get(full_url, headers=self.headers)
             response.raise_for_status()
@@ -134,11 +133,14 @@ class Query:
             # fast diagnostic mode
             else:
                 raise ValueError(f"Request failed for URL:\n{full_url}") from None
-        return pd.DataFrame(response.json())
+        if to_json:
+            return response.json()
+        else:
+            return pd.DataFrame(response.json())
 
 
 
-class cwapi:
+class CWapi:
     def __init__(self, api_token, clubcode=None, access_token=None, base_url='https://atukpostgrest.clubwise.com/'):
         self.base_url = base_url.rstrip('/')
         self.headers = {}
