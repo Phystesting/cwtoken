@@ -4,7 +4,7 @@ cwtoken Technical Reference
 cwtoken simplifies working with PostgREST APIs by:
 
 - Automatically handling **access token generation**
-- Provides a query constructor for URL generation, and a diagnostic mode for debugging
+- Provides a query constructor for URL generation
 - Making authenticated **GET requests** to PostgREST endpoints
 - Create and manage a lightweight backend that can schedule queries, refresh data on intervals, and expose custom API endpoints.
 - Providing a **CLI** for quick testing and usage
@@ -13,18 +13,18 @@ cwtoken simplifies working with PostgREST APIs by:
 ---
 
 CWClient -- API Client
-------------------
+----------------------
 
 Represents an authenticated connection to the PostgREST API. All queries are created via this object.
 
 Constructor:
 
-client = CWClient(
-    api_token: str,
-    clubcode: str = None,
-    access_token: str = None,
-    base_url: str = "https://atukpostgrest.clubwise.com/"
-)
+    client = CWClient(
+        api_token: str,
+        clubcode: str = None,
+        access_token: str = None,
+        base_url: str = "https://atukpostgrest.clubwise.com/"
+    )
 
 Attributes:
 
@@ -34,23 +34,31 @@ Attributes:
 
 Methods:
 
-- client.table(endpoint: str) -> query  
+- client.table(endpoint: str) -> Query  
   Returns a query constructor object for building endpoint queries. Supports method chaining.
 
 - client.raw_query(full_query: str) -> RawQuery  
   Returns a raw query object for executing a fully specified URL.
 
+- client.get_endpoints() -> list[str]  
+  Fetches available API endpoints from the PostgREST spec. Useful for discovery.
+
+- client.last_response() -> dict | str | None  
+  Returns the raw JSON or text of the last HTTP response made by the client.
+
+---
+
 Query -- Table-based Query Constructor
--------------------------------------
+--------------------------------------
 
 - Created via client.table(endpoint)
 - Supports chained methods:
 
-q = client.table("member") \
-          .select("member_no", "first_name") \
-          .filters("date_of_birth=gt.1980-01-01") \
-          .order("first_name", desc=True) \
-          .limit(10)
+    q = client.table("member") \
+              .select("member_no", "first_name") \
+              .filters("date_of_birth=gt.1980-01-01") \
+              .order("first_name", desc=True) \
+              .limit(10)
 
 Methods:
 
@@ -59,21 +67,48 @@ Methods:
 - .order(*columns, desc=False) — orders results
 - .limit(n) — limits results
 - .fetch(to_df=True)  -> pandas.DataFrame
-- .fetch(to_df=False) -> dict (parsed JSON response) — executes query
+- .fetch(to_df=False) -> dict — executes query
+- .clear_filters(), .clear_orders(), .clear_params(), .clear_select(), .clear_limit() — reset parts of the query
+
+Utility methods:
+
+- .compose_url() -> str  
+  Builds the full query string (with filters, ordering, and parameters).  
+  Does not send the request — only constructs the final URL.
+
+- .get_columns() -> list[str]  
+  Fetches one row (with `?limit=1`) and returns the list of available column names for that endpoint.
+
+- .last_response() -> dict | str | None  
+  Returns the most recent response payload (JSON if possible, else raw text).
+
+---
 
 RawQuery -- Direct URL Query
----------------------------
+----------------------------
 
 - Created via client.raw_query(full_query)
-- method:
+- Used for fully constructed query strings without method chaining.
 
-df = client.raw_query("member?select=first_name&limit=10").fetch()
+Example:
 
-- .fetch(to_df=False) -> pandas.DataFrame — executes URL request
-- Bypasses query builder chaining; used for pre-formed URLs
+    df = client.raw_query("member?select=first_name&limit=10").fetch()
+
+Methods:
+
+- .fetch(to_df=False) -> dict | list  
+  Executes the raw URL request. Returns JSON by default, or pandas.DataFrame if `to_df=True`.
+
+- .get_columns() -> list[str]  
+  Fetches one row (with `?limit=1`) and extracts available column names.
+
+- .last_response() -> dict | str | None  
+  Returns the JSON or raw text of the last executed request.
+
+---
 
 CWBackend -- Backend API
-----------------------------
+------------------------
 
 - Created via CWBackend(client, **kwargs)
 - Each kwarg defines an endpoint: name=(function, interval_seconds)
@@ -81,45 +116,48 @@ CWBackend -- Backend API
 
 Example:
 
-def example_function(client):
-    query = client.table("example_table")
-    data = query.fetch()
-    return data
+    def example_function(client):
+        query = client.table("example_table")
+        data = query.fetch()
+        return data
 
-
-backend = CWBackend(
-    client,
-    exaample_endpoint=(example_function, 300)
-)
-backend.run()
+    backend = CWBackend(
+        client,
+        example_endpoint=(example_function, 300)
+    )
+    backend.run()
 
 Endpoints:
 
 - /example_endpoint  -> returns output of example_function
-- /overview  -> returns a combined json of all endpoints
+- /overview          -> returns a combined JSON of all endpoints
+
+---
 
 CLI Functions
 -------------
 
 ### test_connection()
+Pings the API server to check if it's reachable.  
+Run from CLI:
 
-Pings the API server to check if it's reachable.
-
-Can be run from the CLI:
-
-cwtoken test
+    cwtoken test
 
 ### cwtoken gui
-Launches the graphical interface for building and executing queries.
+Launches the graphical interface for building and executing queries.  
+Run from CLI:
 
-Run it from the CLI like this:
+    cwtoken gui
 
-cwtoken gui
+---
 
 Notes on Usage
 --------------
 
 - Queries are always linked to a client.
 - Method chaining is supported for the query object.
-- Both query and RawQuery return pandas.DataFrame on .fetch().
-- RawQuery can be used for fully constructed URLs without using the query builder.
+- Both Query and RawQuery store the **last response** in `.response`, accessible via `.last_response()`.
+- `.get_endpoints()` discovers all available PostgREST tables.
+- `.get_columns()` checks an endpoint for available column names.
+- `.compose_url()` lets you debug or log the full query string before execution.
+- Both Query and RawQuery can return results as pandas.DataFrame for analysis or dict/JSON for raw usage.
