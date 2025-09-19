@@ -6,21 +6,22 @@ cwtoken simplifies working with PostgREST APIs by:
 - Automatically handling **access token generation**
 - Provides a query constructor for URL generation, and a diagnostic mode for debugging
 - Making authenticated **GET requests** to PostgREST endpoints
+- Create and manage a lightweight backend that can schedule queries, refresh data on intervals, and expose custom API endpoints.
 - Providing a **CLI** for quick testing and usage
 - Including a user-friendly **GUI** for building and running queries without code
 
 ---
 
-cwapi — API Client
+CWClient -- API Client
 ------------------
 
 Represents an authenticated connection to the PostgREST API. All queries are created via this object.
 
 Constructor:
 
-client = cwapi(
+client = CWClient(
     api_token: str,
-    clubcode: str = None,        # required if access_token not provided
+    clubcode: str = None,
     access_token: str = None,
     base_url: str = "https://atukpostgrest.clubwise.com/"
 )
@@ -39,7 +40,7 @@ Methods:
 - client.raw_query(full_query: str) -> RawQuery  
   Returns a raw query object for executing a fully specified URL.
 
-query — Table-based Query Constructor
+Query -- Table-based Query Constructor
 -------------------------------------
 
 - Created via client.table(endpoint)
@@ -57,9 +58,10 @@ Methods:
 - .filters(*filters) — raw PostgREST filter strings
 - .order(*columns, desc=False) — orders results
 - .limit(n) — limits results
-- .fetch(diagnostic=False) -> pandas.DataFrame — executes query
+- .fetch(to_df=True)  -> pandas.DataFrame
+- .fetch(to_df=False) -> dict (parsed JSON response) — executes query
 
-RawQuery — Direct URL Query
+RawQuery -- Direct URL Query
 ---------------------------
 
 - Created via client.raw_query(full_query)
@@ -67,8 +69,34 @@ RawQuery — Direct URL Query
 
 df = client.raw_query("member?select=first_name&limit=10").fetch()
 
-- .fetch() -> pandas.DataFrame — executes URL request
+- .fetch(to_df=False) -> pandas.DataFrame — executes URL request
 - Bypasses query builder chaining; used for pre-formed URLs
+
+CWBackend -- Backend API
+----------------------------
+
+- Created via CWBackend(client, **kwargs)
+- Each kwarg defines an endpoint: name=(function, interval_seconds)
+- Functions are executed on schedule, results cached and served via backend
+
+Example:
+
+def example_function(client):
+    query = client.table("example_table")
+    data = query.fetch()
+    return data
+
+
+backend = CWBackend(
+    client,
+    exaample_endpoint=(example_function, 300)
+)
+backend.run()
+
+Endpoints:
+
+- /example_endpoint  -> returns output of example_function
+- /overview  -> returns a combined json of all endpoints
 
 CLI Functions
 -------------

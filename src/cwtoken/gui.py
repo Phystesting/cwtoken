@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from .key_manager import cwapi
+from .key_manager import CWClient
 from .utils import QueryWrapper
 import os
 from datetime import datetime, timedelta, timezone
@@ -27,7 +27,7 @@ class run_gui(tk.Tk):
         save_credentials = self.save_cred.get()
         
         try:
-            self.client = cwapi(api_token, clubcode=clubcode)
+            self.client = CWClient(api_token, clubcode=clubcode)
             if save_credentials == 1:
                 config_dir = Path.home() / ".cwtoken"
                 config_dir.mkdir(exist_ok=True)
@@ -68,7 +68,11 @@ class run_gui(tk.Tk):
                     self.clubcode_entry.insert(0, clubcode)
                     self.token_entry.insert(0, api_token)
             except ValueError:
-                print("Credential file format invalid.")
+                messagebox.showerror(
+                "Credentials Error",
+                "The saved credentials file is invalid or corrupted.\n"
+                "Please re-enter your clubcode and API token."
+            )
 
         tk.Button(self, text="Login", command=self.try_login).pack(pady=20)
     
@@ -105,7 +109,9 @@ class run_gui(tk.Tk):
             "You can also switch to Full URL mode to enter a complete endpoint URL directly."
         )
         tk.Label(top_frame, text=desc_text, justify="left", wraplength=600).grid(row=1, column=0, columnspan=2, sticky="w", pady=(5,10))
-
+        
+        endpoints = self.client.get_endpoints()
+        
         # Query type radio buttons
         self.query_type = tk.IntVar(value=1)  # default to constructor
         
@@ -140,16 +146,16 @@ class run_gui(tk.Tk):
         table_row = tk.Frame(self.constructor_frame)
         table_row.pack(fill="x", pady=2)
         tk.Label(table_row, text="Table:").pack(side="left")
-        self.table_entry = tk.Entry(table_row, width=20)
-        self.table_entry.pack(side="left", padx=5)
+        self.table_combo = ttk.Combobox(table_row,values=endpoints, width=20)
+        self.table_combo.pack(side="left", padx=5)
         tk.Button(table_row, text="Add", command=self.start_query).pack(side="left", padx=5)
 
         # Select row
         select_row = tk.Frame(self.constructor_frame)
         select_row.pack(fill="x", pady=2)
         tk.Label(select_row, text="Select:").pack(side="left")
-        self.select_entry = tk.Entry(select_row, width=50)
-        self.select_entry.pack(side="left", fill="x", expand=True, padx=5)
+        self.select_combo = ttk.Combobox(select_row, values=[], width=50)
+        self.select_combo.pack(side="left", fill="x", expand=True, padx=5)
         tk.Button(select_row, text="Add",command=self.add_select).pack(side="left", padx=5)
         tk.Button(select_row, text="Clear", command=self.clear_select).pack(side="left", padx=5)
         
@@ -195,8 +201,8 @@ class run_gui(tk.Tk):
     #----- Query helpers -------
     def add_select(self):
         try:
-            self.query.select(self.select_entry.get())
-            self.select_entry.delete(0, tk.END)
+            self.query.select(self.select_combo.get())
+            self.select_combo.delete(0, tk.END)
             self.update_preview()
         except:
             messagebox.showerror("Error", "Please enter a table before adding selects.")
@@ -246,7 +252,8 @@ class run_gui(tk.Tk):
             self.query_preview_var.set("Query preview:")
     
     def start_query(self):
-        self.query = self.client.table(self.table_entry.get())
+        self.query = self.client.table(self.table_combo.get())
+        self.select_combo['values'] = self.query.get_columns()
         self.update_preview()
         
     def start_raw_query(self):
@@ -255,6 +262,7 @@ class run_gui(tk.Tk):
     
     def clear_query(self):
         self.query = None
+        self.select_combo['values'] = []
         self.update_preview()
     
     def clear_select(self):
@@ -307,6 +315,7 @@ class run_gui(tk.Tk):
 
     def load_update(self):
         self.load_query()
+        self.select_combo['values'] = self.query.get_columns()
         self.update_preview()
 
     def load_query(self):
@@ -317,36 +326,38 @@ class run_gui(tk.Tk):
         )
         if not file_path:
             return
-          
-        with open(file_path, 'r') as json_File:
-            load_file = json.load(json_File)
-        if load_file["query_type"] == "Constructor":
-            if self.query_type.get() == 1:
-                self.query = self.client.table(load_file["table"])
-                if load_file.get("select"):
-                    self.query.select(load_file.get("select"))
-                if load_file.get("filters"):
-                    self.query._filters = load_file.get("filters")
-                if load_file.get("order"):
-                    self.query.order(load_file.get("order"))
-                if load_file.get("limit"):
-                    self.query.limit(load_file["limit"])
+        try:
+            with open(file_path, 'r') as json_File:
+                load_file = json.load(json_File)
+            if load_file["query_type"] == "Constructor":
+                if self.query_type.get() == 1:
+                    self.query = self.client.table(load_file["table"])
+                    if load_file.get("select"):
+                        self.query.select(load_file.get("select"))
+                    if load_file.get("filters"):
+                        self.query._filters = load_file.get("filters")
+                    if load_file.get("order"):
+                        self.query.order(load_file.get("order"))
+                    if load_file.get("limit"):
+                        self.query.limit(load_file["limit"])
+                else:
+                    self.url_entry.delete(0, tk.END)
+                    self.url_entry.insert(0, load_file["query"])
+                    #self.query = self.client.raw_query(load_file["query"])
             else:
-                self.url_entry.delete(0, tk.END)
-                self.url_entry.insert(0, load_file["query"])
-                #self.query = self.client.raw_query(load_file["query"])
-        else:
-            if self.query_type.get() == 2:
-                self.url_entry.delete(0, tk.END)
-                self.url_entry.insert(0, load_file["query"])
-                #self.query = self.client.raw_query(load_file["query"])
-            else:
-                messagebox.showerror("Error", "Cannot load a Raw query into constructor, please use full url mode.")
-        load_file["load_count"] = load_file["load_count"] + 1
-        load_file["last_run_at"] = datetime.now(timezone.utc).isoformat()
-        with open(file_path, "w") as f:
-            json.dump(load_file, f, indent=4)
-
+                if self.query_type.get() == 2:
+                    self.url_entry.delete(0, tk.END)
+                    self.url_entry.insert(0, load_file["query"])
+                    #self.query = self.client.raw_query(load_file["query"])
+                else:
+                    messagebox.showerror("Error", "Cannot load a Raw query into constructor, please use full url mode.")
+            load_file["load_count"] = load_file["load_count"] + 1
+            load_file["last_run_at"] = datetime.now(timezone.utc).isoformat()
+            with open(file_path, "w") as f:
+                json.dump(load_file, f, indent=4)
+        except:
+            messagebox.showerror("Error", "The selected file is not in the correct format. Please choose another file.")
+            
     #------ Execution -------------
     
     def insert_keywords(self):
@@ -394,20 +405,20 @@ class run_gui(tk.Tk):
         if not self.df.empty:
             container = tk.Frame(self)
             container.pack(fill="both", expand=True, padx=50, pady=10)
-
+            
             display_df = tk.LabelFrame(container, text="Your query results")
             display_df.pack(fill="both", expand=True)
-
+            
             table_frame = tk.Frame(display_df)
             table_frame.pack(fill="both", expand=True)
-
+            
             tv1 = ttk.Treeview(table_frame)
             tv1.grid(row=0, column=0, sticky="nsew")
-
+            
             # Scrollbars
             treescrolly = tk.Scrollbar(table_frame, orient="vertical", command=tv1.yview)
             treescrolly.grid(row=0, column=1, sticky="ns")
-
+            
             treescrollx = tk.Scrollbar(table_frame, orient="horizontal", command=tv1.xview)
             treescrollx.grid(row=1, column=0, sticky="ew")
 
@@ -455,7 +466,7 @@ class run_gui(tk.Tk):
     def generatepy(self):
         wrapped_query = QueryWrapper(self.query)
         script_content = textwrap.dedent(f"""
-            from cwtoken import cwapi
+            from cwtoken import CWClient
             from datetime import datetime, timedelta
 
             today = datetime.today().date()
@@ -469,12 +480,12 @@ class run_gui(tk.Tk):
             clubcode = '{self.client.clubcode}'
             api_token = '{self.client.api_token}'
             
-            client = cwapi(api_token=api_token,clubcode=clubcode)
+            client = CWClient(api_token=api_token,clubcode=clubcode)
             
             raw_request = '{wrapped_query.full_url()}'
             request = raw_request.format(**keywords)
             
-            df = client.raw_query(request).fetch()
+            df = client.raw_query(request).fetch(to_df=True)
             print(df)
         """)
 

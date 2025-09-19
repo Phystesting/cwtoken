@@ -2,15 +2,16 @@ from flask import Flask, Response, jsonify
 from flask_cors import CORS
 import threading
 import time
+from .exceptions import *
 
-class CWbackend:
-    def __init__(self, client, update_interval=300, **func_interval):
+class CWBackend:
+    def __init__(self, client, **func_interval):
         self.client = client
-        default_interval = 300
         self.functions = {}
         self.intervals = {}
         self.data = {key: None for key in func_interval}
         self.last_update = {key: 0 for key in func_interval}
+        default_interval = 300
         for key, value in func_interval.items():
             if callable(value):
                 self.functions[key] = value
@@ -34,20 +35,25 @@ class CWbackend:
             return jsonify(self.data)
     
     def update_data(self):
+        update_times = {key: time.time() for key in self.intervals}
         while True:
             for key, func in self.functions.items():
                 now = time.time()
                 if now - self.last_update[key] >= self.intervals[key]:
+                    self.last_update[key] = now
+                    update_times[key] = now + self.intervals[key]
                     try:
                         self.data[key] = func(self.client)
-                    except Exception as e:
-                        try:
+                    except FetchError as e:
+                        if e.status_code() == 401: # Not authorised so token expired or wrong
                             self.client.get_access_token()
                             self.data[key] = func(self.client)
-                        except:
-                            self.data[key] = f"Error fetching data: {e}"  
-            time.sleep(1)
+                        else:
+                            self.data[key] = f"Error fetching data"
+            next_update = min(update_times.values())
+            sleep_time = max(1, next_update - time.time())
+            time.sleep(sleep_time)
 
     def run(self,host=None,port=None,debug=True):
         threading.Thread(target=self.update_data, daemon=True).start() 
-        self.app.run(debug=debug)
+        self.app.run(debug=debug, use_reloader=False)

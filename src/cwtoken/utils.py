@@ -65,8 +65,8 @@ class QueryWrapper:
             return None
     def run(self):
         if self.query.query_type == "Constructor":
-            return self.query.fetch(diagnostic=True)
+            return self.query.fetch(to_df=True)
         elif self.query.query_type == "Raw":
-            return self.query.fetch()
+            return self.query.fetch(to_df=True)
         else:
             return None

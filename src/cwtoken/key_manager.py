@@ -1,8 +1,8 @@
 import requests
 import pandas as pd
 from urllib.parse import urlencode
-from requests.exceptions import HTTPError, RequestException
 import warnings
+from .exceptions import *
 
 class RawQuery:
     def __init__(self, base_url, full_query, headers):
@@ -10,12 +10,36 @@ class RawQuery:
         self.base_url = base_url.rstrip('/')
         self.full_query = full_query.strip('/')
         self.headers = headers
-
-    def fetch(self):
-        full_url = f"{self.base_url}/{self.full_query}"
+        self.response = None
+    
+    def last_response(self):
+        if self.response is None:
+            return None
+        try:
+            return self.response.json()
+        except Exception:
+            return self.response.text
+    
+    def get_columns(self):
+        full_url = f"{self.base_url}/{self.endpoint}?limit=1"
         response = requests.get(full_url, headers=self.headers)
-        response.raise_for_status()
-        return pd.DataFrame(response.json())
+        self.response = response
+        data = response.json()
+        columns = list(data[0].keys() if data else [])
+        return columns
+    
+    def fetch(self, to_df=False):
+        full_url = f"{self.base_url}/{self.full_query}"
+        try:
+            response = requests.get(full_url, headers=self.headers)
+            self.response = response
+            response.raise_for_status()
+        except Exception as ex:
+            resp = getattr(ex, 'response', None)
+            raise FetchError(f"Request failed for URL:\n{full_url}", resp)
+
+        return pd.DataFrame(response.json()) if to_df else response.json()
+
 
 class Query:
     def __init__(self, base_url, endpoint, headers=None):
@@ -26,11 +50,11 @@ class Query:
         self._params = {}
         self._filters = []
         self._orders = []
-
+        self.response = None
+    
     def select(self, *columns):
-        cols = [c for c in columns]
-        existing = self._params.get('select','').split(',')
-        combined = [c for c in existing + cols if c]
+        existing = self._params.get('select', '').split(',')
+        combined = [c for c in existing + list(columns) if c]
         self._params['select'] = ','.join(combined)
         return self
 
@@ -38,9 +62,9 @@ class Query:
         self._filters.extend(filter_strings)
         return self
 
-    def order(self, *column, desc=False):
+    def order(self, *columns, desc=False):
         direction = 'desc' if desc else 'asc'
-        for col in column:
+        for col in columns:
             for c in col.split(','):
                 c = c.strip()
                 if c:
@@ -50,7 +74,7 @@ class Query:
     def limit(self, n):
         self._params['limit'] = str(n)
         return self
-        
+
     def clear_filters(self):
         self._filters = []
         return self
@@ -72,81 +96,61 @@ class Query:
         self._params.pop("limit", None)
         return self
     
+    def last_response(self):
+        if self.response is None:
+            return None
+        try:
+            return self.response.json()
+        except Exception:
+            return self.response.text
+    
+    def get_columns(self):
+        full_url = f"{self.base_url}/{self.endpoint}?limit=1"
+        response = requests.get(full_url, headers=self.headers)
+        self.response = response
+        data = response.json()
+        columns = list(data[0].keys() if data else [])
+        return columns
+    
     def compose_url(self):
-        # Compose full URL
-        full_url = f'{self.endpoint}'
-        # Add ordering to params if exists
+        full_url = f"{self.endpoint}"
         if self._orders:
             self._params['order'] = ','.join(self._orders)
 
         query_str = urlencode(self._params, safe=',()')
-        
         filter_str = '&'.join(self._filters)
 
         if query_str or filter_str:
             full_url += '?' + '&'.join(filter(None, [query_str, filter_str]))
         return full_url
-    
-    def fetch(self,to_json=False, diagnostic=False):
-        full_url = f'{self.base_url}/{self.compose_url()}'
+
+    def fetch(self,to_df=False):
+        full_url = f"{self.base_url}/{self.compose_url()}"
+ 
+        def safe_response(e):
+            return getattr(e, 'response', None)
+
         try:
             response = requests.get(full_url, headers=self.headers)
+            self.response = response
             response.raise_for_status()
-        
-        except:
-            #full (slow) diagnostic mode
-            if diagnostic:
-                try:
-                    connection_test = requests.head(f'{self.base_url}/', headers=self.headers)
-                    connection_test.raise_for_status()
-                except:
-                    raise ValueError(f"Connection to server failed, server returned {connection_test.status_code}. Check Clubcode, API/Access token and network connection") from None
-                try:
-                    check_endpoint = requests.get(f'{self.base_url}/{self.endpoint}?select=*&limit=1', headers=self.headers)
-                    check_endpoint.raise_for_status()
-                except:
-                    raise ValueError(f"Data fetch failed, invalid base url or endpoint in table") from None
-                if self._params.get('select'):
-                    try:
-                        check_selects = requests.get(f'{self.base_url}/{self.endpoint}?select={self._params['select']}&limit=1', headers=self.headers)
-                        check_selects.raise_for_status()
-                    except:
-                        raise ValueError(f"Data fetch failed, invalid column names in select") from None
-                if self._filters:
-                    try:
-                        check_filters = requests.get(f'{self.base_url}/{self.endpoint}?select=*&limit=1&{filter_str}', headers=self.headers)
-                        check_filters.raise_for_status()
-                    except:
-                        raise ValueError(f"Data fetch failed, invalid filters") from None
-                if self._orders:
-                    try:
-                        check_order = requests.get(f'{self.base_url}/{self.endpoint}?select=*&limit=5&order={self._params['order']}', headers=self.headers)
-                        check_order.raise_for_status()
-                    except:
-                        raise ValueError(f"Data fetch failed, invalid order inputted") from None
-                if self._params.get('limit'):
-                    try:
-                        check_limit = requests.get(f'{self.base_url}/{self.endpoint}?select=*&limit={self._params['limit']}', headers=self.headers)
-                        check_limit.raise_for_status()
-                    except:
-                        raise ValueError(f"Data fetch failed, invalid limits applied") from None
-            # fast diagnostic mode
-            else:
-                raise ValueError(f"Request failed for URL:\n{full_url}") from None
-        if to_json:
-            return response.json()
-        else:
-            return pd.DataFrame(response.json())
+        except Exception as e:
+            resp = safe_response(e)
+            raise FetchError("Query failed", resp)
+            
+        return pd.DataFrame(response.json()) if to_df else response.json()
 
 
 
-class CWapi:
+
+class CWClient:
     def __init__(self, api_token, clubcode=None, access_token=None, base_url='https://atukpostgrest.clubwise.com/'):
         self.base_url = base_url.rstrip('/')
         self.headers = {}
         self.clubcode = clubcode
         self.api_token = api_token
         self.access_token = access_token
+        self.response = None
 
         if not self.access_token:
             if not self.clubcode:
@@ -164,20 +168,41 @@ class CWapi:
             'CW-API-Token': self.api_token,
             'Content-Type': 'application/json'
         }
-        payload = {'sClubCode': self.clubcode}
-        response = requests.post(request_url, json=payload, headers=request_header, timeout=10)
-
-        if response.status_code != 200:
-            raise Exception("Failed to fetch access token.")
-
+        try:
+            payload = {'sClubCode': self.clubcode}
+            response = requests.post(request_url, json=payload, headers=request_header, timeout=10)
+            self.response = response
+            response.raise_for_status()
+        except Exception as e:
+            resp = getattr(e, 'response', None)
+            raise AuthenticationError( "Failed to authenticate. Check your clubcode, API token, and network connection.",resp)
+        
         self.access_token = response.json().get('access-token')
         if not self.access_token:
-            raise Exception("Access token not found in response.")
+            raise AuthenticationError("Access token not found in response.", response)
         self.headers = {
             'CW-API-Token': self.api_token,
             'Authorization': f'Bearer {self.access_token}'
         }
+        
         return self
+    
+    def last_response(self):
+        if self.response is None:
+            return None
+        try:
+            return self.response.json()
+        except Exception:
+            return self.response.text
+    
+    def get_endpoints(self):
+        response = requests.get(self.base_url, headers=self.headers)
+        spec = response.json()
+        endpoints = list(spec["paths"].keys())
+        tables = []
+        for endpoint in endpoints:
+            tables.append(endpoint.lstrip("/"))
+        return tables
         
     def table(self, endpoint):
         return Query(self.base_url, endpoint, self.headers)
