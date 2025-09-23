@@ -4,22 +4,43 @@ import threading
 import time
 from .exceptions import *
 
+
+class Endpoints:
+    def __init__(self, client, default_interval=300):
+        self.client = client
+        self.default_interval = default_interval
+        self._endpoints = []
+
+    def add(self, func, interval=None, name=None):
+        if name is None:
+            name = func.__name__
+        if interval is None:
+            interval = self.default_interval
+        self._endpoints.append((name, func, interval))
+        return self  # allows chaining
+
+    def run(self, host=None, port=None, debug=True):
+        backend = CWBackend(self.client, self._endpoints)
+        backend.run(host=host, port=port, debug=debug)
+
+
 class CWBackend:
-    def __init__(self, client, **func_interval):
+    def __init__(self, client, endpoints, default_interval=300):
         self.client = client
         self.functions = {}
         self.intervals = {}
-        self.data = {key: None for key in func_interval}
-        self.last_update = {key: 0 for key in func_interval}
-        default_interval = 300
-        for key, value in func_interval.items():
-            if callable(value):
-                self.functions[key] = value
-                self.intervals[key] = default_interval
-            else:
-                func, interval = value
-                self.functions[key] = func
-                self.intervals[key] = interval
+        self.data = {}
+        self.last_update = {}
+
+        for name, func, interval in endpoints:
+            # allow None or missing interval -> default
+            if interval is None:
+                interval = default_interval
+
+            self.functions[name] = func
+            self.intervals[name] = interval
+            self.data[name] = None
+            self.last_update[name] = 0
         self.app = Flask(__name__)
         CORS(self.app)
         for key in self.functions.keys():
@@ -33,7 +54,7 @@ class CWBackend:
         @self.app.route("/overview")   
         def overview():
             return jsonify(self.data)
-    
+        
     def update_data(self):
         update_times = {key: time.time() for key in self.intervals}
         while True:

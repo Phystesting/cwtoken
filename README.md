@@ -41,7 +41,7 @@ Methods:
   Returns a raw query object for executing a fully specified URL.
 
 - client.get_endpoints() -> list[str]  
-  Fetches available API endpoints from the PostgREST spec. Useful for discovery.
+  Fetches available API endpoints from the PostgREST spec.
 
 - client.last_response() -> dict | str | None  
   Returns the raw JSON or text of the last HTTP response made by the client.
